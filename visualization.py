@@ -1,6 +1,6 @@
 from __future__ import print_function
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0" # set GPU ID
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # set GPU ID
 import torch.nn as nn
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
@@ -14,7 +14,7 @@ import imageio
 import cv2
 from sklearn.preprocessing import MinMaxScaler
 import warnings
-warnings.filterwarnings("ignore") 
+warnings.filterwarnings('ignore') 
 
 scaler = MinMaxScaler(copy=True, feature_range=(0, 1))
 def video_frame_sample(frame_interval, video_length, sample_num):
@@ -45,17 +45,17 @@ def create_heatmap(im_map, im_cloud, kernel_size=(5,5),colormap=cv2.COLORMAP_JET
 
 
 # features, labels, and testing set list
-dir_video  = "data/visual_feature.h5"
-dir_audio  = "data/audio_feature.h5"
-dir_labels = "data/labels.h5"
-dir_order_test = "data/test_order.h5"
+dir_video  = 'data/visual_feature.h5'
+dir_audio  = 'data/audio_feature.h5'
+dir_labels = 'data/labels.h5'
+dir_order_test = 'data/test_order.h5'
 
 # access to original videos for extracting video frames
-raw_video_dir = "data/AVE" # videos in AVE dataset
+raw_video_dir = 'data/AVE' # videos in AVE dataset
 # lis = os.listdir(raw_video_dir)
-f = open("data/Annotations.txt", 'r')
+f = open('data/Annotations.txt', 'r')
 dataset = f.readlines()
-print("The dataset contains %d samples" % (len(dataset)))
+print('The dataset contains %d samples' % (len(dataset)))
 f.close()
 len_data = len(dataset)
 with h5py.File(dir_order_test, 'r') as hf:
@@ -90,13 +90,13 @@ c = 0
 t = 10
 sample_num = 16 # 16 frames for 1-sec video segment
 extract_frames = np.zeros((160, 224, 224, 3)) # 160 224x224x3 frames for a 10-sec video
-save_dir = "visual_att/attention_maps/" # store attention maps
-original_dir = "visual_att/original/"   # store video frames
+save_dir = 'visual_att/attention_maps/' # store attention maps
+original_dir = 'visual_att/original/'   # store video frames
 
 for num in range(len(test_order)):
     print(num)
     data = dataset[test_order[num]]
-    x = data.split("&")
+    x = data.split('&')
     
     # extract video frames
     video_index = os.path.join(raw_video_dir, x[1] + '.mp4')
@@ -140,7 +140,7 @@ for num in range(len(test_order)):
         heatmap = cv2.applyColorMap(np.uint8(heat_map), cv2.COLORMAP_JET)
         
         att_frame = heatmap * 0.2 + np.uint8(im) * 0.6
-        n = "%04d" % idx
+        n = '%04d' % idx
         vid_index = os.path.join(att_dir, 'pic' + n + '.jpg')
         cv2.imwrite(vid_index, att_frame)
         ori_frame = np.uint8(im)
