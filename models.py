@@ -3,10 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-class Att_Net(nn.Module):
+class att_Net(nn.Module):
     '''audio-visual event localization with audio-guided visual attention and audio-visual fusion.'''
     def __init__(self, embedding_dim, hidden_dim, hidden_size, tagset_size):
-        super(Att_Net, self).__init__()
+        super(att_Net, self).__init__()
         self.hidden_dim = hidden_dim
         self.lstm_audio = nn.LSTM(128, hidden_dim, 1, batch_first=True, bidirectional=True)
         self.lstm_video = nn.LSTM(512, hidden_dim, 1, batch_first=True, bidirectional=True)
@@ -52,10 +52,16 @@ class Att_Net(nn.Module):
         video_t = c_t.view(video.size(0), -1, 512) #attended visual features
 
         # Bi-LSTM for temporal modeling
-        hidden1 = (Variable(torch.zeros(2, audio.size(0), self.hidden_dim).cuda()),
-                   Variable(torch.zeros(2, audio.size(0), self.hidden_dim).cuda()))
-        hidden2 = (Variable(torch.zeros(2, audio.size(0), self.hidden_dim).cuda()),
-                   Variable(torch.zeros(2, audio.size(0), self.hidden_dim).cuda()))
+        if torch.cuda.is_available():
+            hidden1 = (Variable(torch.zeros(2, audio.size(0), self.hidden_dim).cuda()),
+                       Variable(torch.zeros(2, audio.size(0), self.hidden_dim).cuda()))
+            hidden2 = (Variable(torch.zeros(2, audio.size(0), self.hidden_dim).cuda()),
+                       Variable(torch.zeros(2, audio.size(0), self.hidden_dim).cuda()))
+        else:
+            hidden1 = (Variable(torch.zeros(2, audio.size(0), self.hidden_dim)),
+                       Variable(torch.zeros(2, audio.size(0), self.hidden_dim)))
+            hidden2 = (Variable(torch.zeros(2, audio.size(0), self.hidden_dim)),
+                       Variable(torch.zeros(2, audio.size(0), self.hidden_dim)))
         self.lstm_video.flatten_parameters()
         self.lstm_audio.flatten_parameters()
         lstm_audio, hidden1 = self.lstm_audio(audio.view(len(audio), 10, -1), hidden1)

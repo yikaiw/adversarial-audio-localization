@@ -1,57 +1,63 @@
 from __future__ import print_function
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # set GPU ID
-import torch.nn as nn
+import numpy as np
+import h5py
+import torch
+import torch.nn.functional as F
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
-from dataloader import *
-import random
-import models_fusion
-import time
-from sklearn.metrics import accuracy_score
-import torch.nn.functional as F
+from dataloader import AVEDataset
 import imageio
 import cv2
-from sklearn.preprocessing import MinMaxScaler
 import warnings
-warnings.filterwarnings('ignore') 
+warnings.filterwarnings('ignore')
+import argparse
 
-scaler = MinMaxScaler(copy=True, feature_range=(0, 1))
+parser = argparse.ArgumentParser(description='Visualization')
+# Data specifications
+parser.add_argument('--model_name', type=str, default='AV_att', help='model name')
+parser.add_argument('--remote', action='store_true', default=False, help='run locally or remotely')
+parser.add_argument('--gpu', type=int, default=0, help='gpu selection')
+args = parser.parse_args()
+args.data_root_path = '/home2/wyk/datasets/AVE' if args.remote else '/media/wyk/DATA/datasets/AVE'
+args.save_root_path = '/home2/wyk/results/AVE' if args.remote else '/media/wyk/DATA/results/AVE'
+
+os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
+
+
 def video_frame_sample(frame_interval, video_length, sample_num):
-
     num = []
     for l in range(video_length):
-
         for i in range(sample_num):
             num.append(int(l * frame_interval + (i * 1.0 / sample_num) * frame_interval))
-
     return num
 
-def normlize(x, min = 0, max = 255):
 
+def normlize(x, min = 0, max = 255):
     num, row, col = x.shape
     for i in range(num):
         xi = x[i, :, :]
-        xi = max *(xi - np.min(xi))/(np.max(xi) - np.min(xi))
+        xi = max *(xi - np.min(xi)) / (np.max(xi) - np.min(xi))
         x[i, :, :] = xi
     return x
 
+
 def create_heatmap(im_map, im_cloud, kernel_size=(5,5),colormap=cv2.COLORMAP_JET,a1=0.5,a2=0.3):
     print(np.max(im_cloud))
-
     im_cloud[:, :, 1] = 0
     im_cloud[:, :, 2] = 0
-    return (a1*im_map + a2*im_cloud).astype(np.uint8)
+    return (a1 * im_map + a2 * im_cloud).astype(np.uint8)
 
 
 # features, labels, and testing set list
-dir_video  = 'data/visual_feature.h5'
-dir_audio  = 'data/audio_feature.h5'
+dir_video = '%s/visual_feature.h5' % args.data_root_path
+dir_audio = '%s/audio_feature.h5' % args.data_root_path
 dir_labels = 'data/labels.h5'
 dir_order_test = 'data/test_order.h5'
 
 # access to original videos for extracting video frames
-raw_video_dir = 'data/AVE' # videos in AVE dataset
+raw_video_dir = '%s/AVE_Dataset/AVE' % args.data_root_path  # videos in AVE dataset
 # lis = os.listdir(raw_video_dir)
 f = open('data/Annotations.txt', 'r')
 dataset = f.readlines()
@@ -62,36 +68,45 @@ with h5py.File(dir_order_test, 'r') as hf:
     test_order = hf['order'][:]
 
 # pre-trained models
-att_model = torch.load('model/AV_att.pt')
+if torch.cuda.is_available():
+    att_model = torch.load('model/AV_att.pt')
+else:
+    att_model = torch.load('model/AV_att.pt', map_location='cpu')
 att_layer = att_model._modules.get('affine_h') # extract attention maps from the layer
 
-
 # load testing set
-AVEData = AVEDataset(video_dir=dir_video, audio_dir=dir_audio, label_dir=dir_labels,
-                     order_dir=dir_order_test, batch_size=402)
-nb_batch = AVEData.__len__()
+AVEData = AVEDataset(video_dir=dir_video, audio_dir=dir_audio,
+    label_dir=dir_labels, order_dir=dir_order_test, batch_size=402)
+nb_batch = len(AVEData)
 print(nb_batch)
 audio_inputs, video_inputs, labels = AVEData.get_batch(0)
-audio_inputs = Variable(audio_inputs.cuda(), requires_grad=False)
-video_inputs = Variable(video_inputs.cuda(), requires_grad=False)
+if torch.cuda.is_available():
+    audio_inputs = Variable(audio_inputs.cuda(), requires_grad=False)
+    video_inputs = Variable(video_inputs.cuda(), requires_grad=False)
+else:
+    audio_inputs = Variable(audio_inputs, requires_grad=False)
+    video_inputs = Variable(video_inputs, requires_grad=False)
 labels = labels.numpy()
 
 # generate attention maps
 att_map = torch.zeros((4020, 49, 1))
-def fun(m, i, o): att_map.copy_(o.data)
+
+def fun(m, i, o):
+    att_map.copy_(o.data)
+
 map = att_layer.register_forward_hook(fun)
 h_x = att_model(audio_inputs, video_inputs)
 map.remove()
-z_t = Variable(att_map.squeeze( 2 ))
-alpha_t = F.softmax( z_t, dim = -1 ).view( z_t.size( 0 ), -1, z_t.size( 1 ) )
-att_weight = alpha_t.view(402, 10, 7, 7).cpu().data.numpy() # attention maps of all testing samples
+z_t = Variable(att_map.squeeze(2))
+alpha_t = F.softmax(z_t, dim=-1).view(z_t.size(0), -1, z_t.size(1))
+att_weight = alpha_t.view(402, 10, 7, 7).cpu().data.numpy()  # attention maps of all testing samples
     
 c = 0
 t = 10
-sample_num = 16 # 16 frames for 1-sec video segment
-extract_frames = np.zeros((160, 224, 224, 3)) # 160 224x224x3 frames for a 10-sec video
-save_dir = 'visual_att/attention_maps/' # store attention maps
-original_dir = 'visual_att/original/'   # store video frames
+sample_num = 16  # 16 frames for 1-sec video segment
+extract_frames = np.zeros((160, 224, 224, 3))  # 160 224x224x3 frames for a 10-sec video
+save_dir = '%s/visual_att/attention_maps' % args.save_root_path  # store attention maps
+original_dir = '%s/visual_att/original' % args.save_root_path  # store video frames
 
 for num in range(len(test_order)):
     print(num)

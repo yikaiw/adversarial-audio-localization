@@ -4,17 +4,16 @@
 
 from __future__ import print_function
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # GPU ID
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
 import torch.optim as optim
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import StepLR
 from sklearn.metrics import accuracy_score, classification_report
-from dataloader import *
+from dataloader import AVEDataset
 import random
-from model import Att_Net
+from models import att_Net
 random.seed(3344)
 import time
 import warnings
@@ -23,31 +22,28 @@ import argparse
 
 parser = argparse.ArgumentParser(description='AVE')
 # Data specifications
-parser.add_argument('--model_name', type=str, default='AV_att',
-                    help='model name')
-parser.add_argument('--dir_video', type=str, default='data/visual_feature.h5',
-                    help='visual features')
-parser.add_argument('--dir_audio', type=str, default='data/audio_feature.h5',
-                    help='audio features')
-parser.add_argument('--dir_labels', type=str, default='data/labels.h5',
-                    help='labels of AVE dataset')
-parser.add_argument('--nb_epoch', type=int, default=300,
-                    help='number of epoch')
-parser.add_argument('--batch_size', type=int, default=64,
-                    help='number of batch size')
-parser.add_argument('--train', action='store_true', default=False,
-                    help='train a new model')
-parser.add_argument('--dir_order_train', type=str, default='data/train_order.h5',
-                    help='indices of training samples')
-parser.add_argument('--dir_order_val', type=str, default='data/val_order.h5',
-                    help='indices of validation samples')
-parser.add_argument('--dir_order_test', type=str, default='data/test_order.h5',
-                    help='indices of testing samples')
+parser.add_argument('--model_name', type=str, default='AV_att', help='model name')
+parser.add_argument('--remote', action='store_true', default=False, help='run locally or remotely')
+parser.add_argument('--gpu', type=int, default=0, help='gpu selection')
+parser.add_argument('--dir_video', type=str, default='visual_feature.h5', help='visual features')
+parser.add_argument('--dir_audio', type=str, default='audio_feature.h5', help='audio features')
+parser.add_argument('--dir_labels', type=str, default='data/labels.h5', help='labels of AVE dataset')
+parser.add_argument('--nb_epoch', type=int, default=300, help='number of epoch')
+parser.add_argument('--batch_size', type=int, default=64, help='number of batch size')
+parser.add_argument('--train', action='store_true', default=False, help='train a new model')
+parser.add_argument('--dir_order_train', type=str, default='data/train_order.h5', help='indices of training samples')
+parser.add_argument('--dir_order_val', type=str, default='data/val_order.h5', help='indices of validation samples')
+parser.add_argument('--dir_order_test', type=str, default='data/test_order.h5', help='indices of testing samples')
 args = parser.parse_args()
+args.data_root_path = '/home2/wyk/datasets/AVE' if args.remote else '/media/wyk/DATA/datasets/AVE'
+args.dir_video = args.data_root_path + '/' + args.dir_video
+args.dir_audio = args.data_root_path + '/' + args.dir_audio
+
+os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 
 # model
 model_name = args.model_name
-net_model = Att_Net(128, 128, 512, 29)
+net_model = att_Net(128, 128, 512, 29)
 
 net_model.cuda()
 
@@ -111,7 +107,7 @@ def val(args):
     net_model.eval()
     AVEData = AVEDataset(video_dir=args.dir_video, audio_dir=args.dir_audio,
         label_dir=args.dir_labels, order_dir=args.dir_order_val, batch_size=402)
-    nb_batch = AVEData.__len__()
+    nb_batch = len(AVEData)
     audio_inputs, video_inputs, labels = AVEData.get_batch(0)
     audio_inputs = Variable(audio_inputs.cuda(), requires_grad=False)
     video_inputs = Variable(video_inputs.cuda(), requires_grad=False)
