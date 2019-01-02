@@ -5,18 +5,18 @@ import h5py
 
 class AVEDataset(object):
 
-    def __init__(self, video_dir, audio_dir, label_dir, order_dir, batch_size):
-        self.video_dir = video_dir
-        self.audio_dir = audio_dir
+    def __init__(self, dir_video, dir_audio, dir_order, batch_size):
+        self.dir_video = dir_video
+        self.dir_audio = dir_audio
         self.batch_size = batch_size
 
-        with h5py.File(order_dir, 'r') as hf:
+        with h5py.File(dir_order, 'r') as hf:
             order = hf['order'][:]
         self.lis = order
 
-        with h5py.File(audio_dir, 'r') as hf:
+        with h5py.File(dir_audio, 'r') as hf:
             self.audio_features = hf['avadataset'][:]  # [len, 10, 7, 7, 512]
-        with h5py.File(video_dir, 'r') as hf:
+        with h5py.File(dir_video, 'r') as hf:
             self.video_features = hf['avadataset'][:]  # [len, 10, 128]
 
         permu = np.random.permutation(len(self.audio_features) * 10)
@@ -35,5 +35,4 @@ class AVEDataset(object):
             self.video_batch[i, :, :, :] = self.video_features[self.lis[id], :, :, :]
             self.audio_batch[i, :] = self.audio_features[self.lis[id], :]
 
-        return torch.Tensor(self.audio_batch).float(), torch.Tensor(self.video_batch).float(), \
-            torch.Tensor(self.label_batch).float()
+        return torch.Tensor(self.video_batch).float(), torch.Tensor(self.audio_batch).float()
