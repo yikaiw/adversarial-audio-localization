@@ -21,7 +21,7 @@ warnings.filterwarnings('ignore')
 import argparse
 
 parser = argparse.ArgumentParser(description='AVE')
-# Data specifications
+# data specifications
 parser.add_argument('--model_name', type=str, default='AV_att', help='model name')
 parser.add_argument('--remote', action='store_true', default=False, help='run locally or remotely')
 parser.add_argument('--gpu', type=int, default=0, help='gpu selection')
@@ -41,9 +41,9 @@ args.dir_audio = args.data_root_path + '/' + args.dir_audio
 
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 
-# model
+# build model
 model_name = args.model_name
-net_model = att_Net(128, 128, 512, 29)
+net_model = att_Net(128, 512, 29)
 
 net_model.cuda()
 
