@@ -6,6 +6,7 @@ tfrecord/
 __pycache__/
 .idea/
 *.out
+.vscode/
 .ipynb*
 try.py
 logs/

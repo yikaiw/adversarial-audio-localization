@@ -33,8 +33,8 @@ class att_Net(nn.Module):
         nn.init.xavier_uniform(self.decoder[2].weight)
 
     def forward(self, input_video, input_audio):
-        # audio: [batch size, 128], video: [batch size, 7, 7, 512]
-        embed_video = video.view(input_video.size(0), -1, 512)  # [batch size, 49, 512]
+        # input_audio: [batch size, 128], input_video: [batch size, 7, 7, 512]
+        embed_video = input_video.view(-1, 49, 512)  # [batch size, 49, 512]
         embed_video_tmp = embed_video
 
         # audio-guided visual attention

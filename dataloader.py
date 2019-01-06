@@ -14,14 +14,14 @@ class AVEDataset(object):
             order = hf['order'][:]
         self.lis = order
 
-        with h5py.File(dir_audio, 'r') as hf:
-            self.audio_features = hf['avadataset'][:]  # [len, 10, 7, 7, 512]
         with h5py.File(dir_video, 'r') as hf:
-            self.video_features = hf['avadataset'][:]  # [len, 10, 128]
+            self.video_features = hf['avadataset'][:]  # [4143, 10, 7, 7, 512]
+        with h5py.File(dir_audio, 'r') as hf:
+            self.audio_features = hf['avadataset'][:]  # [4143, 10, 128]
 
-        permu = np.random.permutation(len(self.audio_features) * 10)
-        self.audio_features = np.reshape(self.audio_features, [-1, 7, 7, 512])[permu]  # [len * 10, 7, 7, 512]
-        self.video_features = np.reshape(self.video_features, [-1, 128])[permu]  # [len * 10, 128]
+        permu = np.random.permutation(len(self.video_features) * 10)
+        self.video_features = np.reshape(self.video_features, [-1, 7, 7, 512])[permu]  # [len * 10, 7, 7, 512]
+        self.audio_features = np.reshape(self.audio_features, [-1, 128])[permu]  # [len * 10, 128]
 
         self.video_batch = np.zeros([self.batch_size, 7, 7, 512], dtype=np.float32)
         self.audio_batch = np.zeros([self.batch_size, 128], dtype=np.float32)

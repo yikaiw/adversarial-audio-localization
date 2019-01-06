@@ -23,7 +23,7 @@ import argparse
 parser = argparse.ArgumentParser(description='AVE')
 # data specifications
 parser.add_argument('--model_name', type=str, default='AV_att', help='model name')
-parser.add_argument('--remote', action='store_true', default=False, help='run locally or remotely')
+parser.add_argument('--local', action='store_true', default=False, help='run locally or remotely')
 parser.add_argument('--gpu', type=int, default=0, help='gpu selection')
 parser.add_argument('--dir_video', type=str, default='visual_feature.h5', help='visual features')
 parser.add_argument('--dir_audio', type=str, default='audio_feature.h5', help='audio features')
@@ -33,7 +33,7 @@ parser.add_argument('--dir_order_train', type=str, default='data/train_order.h5'
 parser.add_argument('--dir_order_val', type=str, default='data/val_order.h5', help='indices of validation samples')
 parser.add_argument('--dir_order_test', type=str, default='data/test_order.h5', help='indices of testing samples')
 args = parser.parse_args()
-args.data_root_path = '/home2/wyk/datasets/AVE' if args.remote else '/media/wyk/DATA/datasets/AVE'
+args.data_root_path = '/media/wyk/DATA/datasets/AVE' if args.local else '/home2/wyk/datasets/AVE'
 args.dir_video = args.data_root_path + '/' + args.dir_video
 args.dir_audio = args.data_root_path + '/' + args.dir_audio
 
@@ -49,8 +49,8 @@ scheduler = StepLR(optimizer, step_size=15000, gamma=0.1)
 
 
 def train(args):
-    AVEData = AVEDataset(video_dir=args.dir_video, audio_dir=args.dir_audio, 
-                         order_dir=args.dir_order_train, batch_size=args.batch_size)
+    AVEData = AVEDataset(dir_video=args.dir_video, dir_audio=args.dir_audio, 
+                         dir_order=args.dir_order_train, batch_size=args.batch_size)
     nb_batch = len(AVEData) // args.batch_size
     epoch_l = []
     best_val_acc = 0
