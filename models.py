@@ -5,10 +5,9 @@ from torch.autograd import Variable
 
 class att_Net(nn.Module):
     '''Audio-visual event localization with audio-guided visual attention and audio-visual fusion'''
-    def __init__(self, hidden_dim, hidden_size, tagset_size):
+    def __init__(self, hidden_size, noise_size):
         super(att_Net, self).__init__()
-        self.hidden_dim = hidden_dim
-
+        self.noise_size = noise_size
         self.relu = nn.ReLU()
         self.affine_audio = nn.Linear(128, hidden_size)
         self.affine_video = nn.Linear(512, hidden_size)
@@ -16,7 +15,7 @@ class att_Net(nn.Module):
         self.affine_g = nn.Linear(hidden_size, 49, bias=False)
         self.affine_h = nn.Linear(49, 1, bias=False)
 
-        self.decoder = nn.Sequential(nn.Linear(512, 256), nn.ReLU(), nn.Linear(256, 128))
+        self.decoder = nn.Sequential(nn.Linear(512 + noise_size, 256), nn.ReLU(), nn.Linear(256, 128))
 
         self.init_weights()
         if torch.cuda.is_available():
@@ -47,7 +46,7 @@ class att_Net(nn.Module):
         embed_video = torch.bmm(alpha, embed_video_tmp).view(-1, 512)  # [batch size, 512]
 
         # video to audio
-        z = Variable(torch.rand(embed_video.size()[0], 128)).cuda
+        z = Variable(torch.rand(embed_video.size()[0], self.noise_size)).cuda()
         output_audio = self.decoder(torch.cat([embed_video, z], dim=-1))  # [batch size, 512]
 
         return output_audio

@@ -17,11 +17,11 @@ import argparse
 parser = argparse.ArgumentParser(description='Visualization')
 # Data specifications
 parser.add_argument('--model_name', type=str, default='AV_att', help='model name')
-parser.add_argument('--remote', action='store_true', default=False, help='run locally or remotely')
+parser.add_argument('--local', action='store_true', default=False, help='run locally or remotely')
 parser.add_argument('--gpu', type=int, default=0, help='gpu selection')
 args = parser.parse_args()
-args.data_root_path = '/home2/wyk/datasets/AVE' if args.remote else '/media/wyk/DATA/datasets/AVE'
-args.save_root_path = '/home2/wyk/results/AVE' if args.remote else '/media/wyk/DATA/results/AVE'
+args.data_root_path = '/media/wyk/DATA/datasets/AVE' if args.local else '/home2/wyk/datasets/AVE'
+args.save_root_path = '/media/wyk/DATA/datasets/AVE' if args.local else '/home2/wyk/results/AVE'
 
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 
@@ -38,7 +38,7 @@ def normlize(x, min = 0, max = 255):
     num, row, col = x.shape
     for i in range(num):
         xi = x[i, :, :]
-        xi = max *(xi - np.min(xi)) / (np.max(xi) - np.min(xi))
+        xi = max * (xi - np.min(xi)) / (np.max(xi) - np.min(xi))
         x[i, :, :] = xi
     return x
 
@@ -50,10 +50,9 @@ def create_heatmap(im_map, im_cloud, kernel_size=(5,5),colormap=cv2.COLORMAP_JET
     return (a1 * im_map + a2 * im_cloud).astype(np.uint8)
 
 
-# features, labels, and testing set list
+# features, and testing set list
 dir_video = '%s/visual_feature.h5' % args.data_root_path
 dir_audio = '%s/audio_feature.h5' % args.data_root_path
-dir_labels = 'data/labels.h5'
 dir_order_test = 'data/test_order.h5'
 
 # access to original videos for extracting video frames
@@ -75,21 +74,20 @@ else:
 att_layer = att_model._modules.get('affine_h') # extract attention maps from the layer
 
 # load testing set
-AVEData = AVEDataset(video_dir=dir_video, audio_dir=dir_audio,
-    label_dir=dir_labels, order_dir=dir_order_test, batch_size=402)
+AVEData = AVEDataset(dir_video=dir_video, dir_audio=dir_audio,
+                     dir_order=dir_order_test, batch_size=402)
 nb_batch = len(AVEData)
 print(nb_batch)
-audio_inputs, video_inputs, labels = AVEData.get_batch(0)
+audio_inputs, video_inputs = AVEData.get_batch(0)
 if torch.cuda.is_available():
     audio_inputs = Variable(audio_inputs.cuda(), requires_grad=False)
     video_inputs = Variable(video_inputs.cuda(), requires_grad=False)
 else:
     audio_inputs = Variable(audio_inputs, requires_grad=False)
     video_inputs = Variable(video_inputs, requires_grad=False)
-labels = labels.numpy()
 
 # generate attention maps
-att_map = torch.zeros((4020, 49, 1))
+att_map = torch.zeros((402, 49, 1))
 
 def fun(m, i, o):
     att_map.copy_(o.data)
@@ -99,7 +97,7 @@ h_x = att_model(audio_inputs, video_inputs)
 map.remove()
 z_t = Variable(att_map.squeeze(2))
 alpha_t = F.softmax(z_t, dim=-1).view(z_t.size(0), -1, z_t.size(1))
-att_weight = alpha_t.view(402, 10, 7, 7).cpu().data.numpy()  # attention maps of all testing samples
+att_weight = alpha_t.view(402, 7, 7).cpu().data.numpy()  # attention maps of all testing samples
     
 c = 0
 t = 10

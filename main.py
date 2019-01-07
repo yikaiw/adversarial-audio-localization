@@ -40,7 +40,7 @@ args.dir_audio = args.data_root_path + '/' + args.dir_audio
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 
 model_name = args.model_name
-net_model = att_Net(128, 512, 29)
+net_model = att_Net(512, 128)
 net_model.cuda()
 
 loss_function = nn.MSELoss()
@@ -74,7 +74,7 @@ def train(args):
 
         end = time.time()
         epoch_l.append(epoch_loss)
-        print('=== Epoch {%s}   Loss: {%.4f}  Running time: {%4f}' % (str(epoch), (epoch_loss) / n, end - start))
+        print('=== Epoch {%s} \tLoss: {%.4f} \tRunning time: {%2f}' % (str(epoch), (epoch_loss) / n, end - start))
         torch.save(net_model, 'model/' + model_name + ".pt")
 
 
