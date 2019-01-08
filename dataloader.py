@@ -19,12 +19,12 @@ class AVEDataset(object):
         with h5py.File(dir_audio, 'r') as hf:
             self.audio_features = hf['avadataset'][:]  # [4143, 10, 128]
 
-        permu = np.random.permutation(len(self.video_features) * 10)
-        self.video_features = np.reshape(self.video_features, [-1, 7, 7, 512])[permu]  # [len * 10, 7, 7, 512]
-        self.audio_features = np.reshape(self.audio_features, [-1, 128])[permu]  # [len * 10, 128]
+        # permu = np.random.permutation(len(self.video_features) * 10)
+        # self.video_features = np.reshape(self.video_features, [-1, 7, 7, 512])[permu]  # [len * 10, 7, 7, 512]
+        # self.audio_features = np.reshape(self.audio_features, [-1, 128])[permu]  # [len * 10, 128]
 
-        self.video_batch = np.zeros([self.batch_size, 7, 7, 512], dtype=np.float32)
-        self.audio_batch = np.zeros([self.batch_size, 128], dtype=np.float32)
+        self.video_batch = np.zeros([self.batch_size, 10, 7, 7, 512], dtype=np.float32)
+        self.audio_batch = np.zeros([self.batch_size, 10, 128], dtype=np.float32)
 
     def __len__(self):
         return len(self.lis)
@@ -32,7 +32,6 @@ class AVEDataset(object):
     def get_batch(self, idx):
         for i in range(self.batch_size):
             id = idx * self.batch_size + i
-            self.video_batch[i, :, :, :] = self.video_features[self.lis[id], :, :, :]
-            self.audio_batch[i, :] = self.audio_features[self.lis[id], :]
-
+            self.video_batch[i] = self.video_features[self.lis[id]]
+            self.audio_batch[i] = self.audio_features[self.lis[id]]
         return torch.Tensor(self.video_batch).float(), torch.Tensor(self.audio_batch).float()

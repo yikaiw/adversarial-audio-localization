@@ -32,21 +32,22 @@ class att_Net(nn.Module):
         nn.init.xavier_uniform(self.decoder[2].weight)
 
     def forward(self, input_video, input_audio):
-        # input_audio: [batch size, 128], input_video: [batch size, 7, 7, 512]
-        embed_video = input_video.view(-1, 49, 512)  # [batch size, 49, 512]
+        # input_video: [batch size, 10, 7, 7, 512], input_audio: [batch size, 10, 128]
+        embed_video = input_video.view(-1, 49, 512)  # [batch size * 10, 49, 512]
         embed_video_tmp = embed_video
 
         # audio-guided visual attention
-        embed_video = self.relu(self.affine_video(embed_video))  # [batch size, 49, hidden size]
-        embed_audio = self.relu(self.affine_audio(input_audio))  # [batch size, hidden size]
+        embed_video = self.relu(self.affine_video(embed_video))  # [batch size * 10, 49, hidden size]
+        embed_audio = input_audio.view(-1, 128)
+        embed_audio = self.relu(self.affine_audio(embed_audio))  # [batch size * 10, hidden size]
         content_v = self.affine_v(embed_video) + self.affine_g(embed_audio).unsqueeze(2)
-        # [batch size, 49, 49] = [batch size, 49, 49] + [batch size, 49, ]
-        e = self.affine_h((F.tanh(content_v))).squeeze(2)  # [batch size, 49]
-        alpha = F.softmax(e, dim=-1).unsqueeze(1)  # [batch size, 1, 49]
-        embed_video = torch.bmm(alpha, embed_video_tmp).view(-1, 512)  # [batch size, 512]
+        # [batch size * 10, 49, 49] = [batch size * 10, 49, 49] + [batch size * 10, 49, ]
+        e = self.affine_h((F.tanh(content_v))).squeeze(2)  # [batch size * 10, 49]
+        alpha = F.softmax(e, dim=-1).unsqueeze(1)  # [batch size * 10, 1, 49]
+        embed_video = torch.bmm(alpha, embed_video_tmp).view(-1, 512)  # [batch size * 10, 512]
 
         # video to audio
         z = Variable(torch.rand(embed_video.size()[0], self.noise_size)).cuda()
-        output_audio = self.decoder(torch.cat([embed_video, z], dim=-1))  # [batch size, 512]
+        output_audio = self.decoder(torch.cat([embed_video, z], dim=-1))  # [batch size * 10, 128]
 
-        return output_audio
+        return output_audio.view(-1, 10, 128)

@@ -22,7 +22,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='AVE')
 # data specifications
-parser.add_argument('--model_name', type=str, default='AV_att', help='model name')
+parser.add_argument('--name', type=str, default='AV_att', help='model name')
 parser.add_argument('--local', action='store_true', default=False, help='run locally or remotely')
 parser.add_argument('--gpu', type=int, default=0, help='gpu selection')
 parser.add_argument('--dir_video', type=str, default='visual_feature.h5', help='visual features')
@@ -38,10 +38,10 @@ args.dir_video = args.data_root_path + '/' + args.dir_video
 args.dir_audio = args.data_root_path + '/' + args.dir_audio
 
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
+# device = torch.device('cuda:%i' % args.gpu) if torch.cuda.is_available() else torch.device('cpu')
 
-model_name = args.model_name
+model_name = args.name
 net_model = att_Net(512, 128)
-net_model.cuda()
 
 loss_function = nn.MSELoss()
 optimizer = optim.Adam(net_model.parameters(), lr=1e-3)
@@ -74,7 +74,7 @@ def train(args):
 
         end = time.time()
         epoch_l.append(epoch_loss)
-        print('=== Epoch {%s} \tLoss: {%.4f} \tRunning time: {%2f}' % (str(epoch), (epoch_loss) / n, end - start))
+        print('=== Epoch {%s}  Loss: {%.4f}  Running time: {%2f}' % (str(epoch), (epoch_loss) / n, end - start))
         torch.save(net_model, 'model/' + model_name + ".pt")
 
 
