@@ -15,16 +15,16 @@ class AVEDataset(object):
         self.lis = order
 
         with h5py.File(dir_video, 'r') as hf:
-            self.video_features = hf['avadataset'][:]  # [4143, 10, 7, 7, 512]
+            self.feature_video = hf['avadataset'][:]  # [4143, 10, 7, 7, 512]
         with h5py.File(dir_audio, 'r') as hf:
-            self.audio_features = hf['avadataset'][:]  # [4143, 10, 128]
+            self.feature_audio = hf['avadataset'][:]  # [4143, 10, 128]
 
-        # permu = np.random.permutation(len(self.video_features) * 10)
-        # self.video_features = np.reshape(self.video_features, [-1, 7, 7, 512])[permu]  # [len * 10, 7, 7, 512]
-        # self.audio_features = np.reshape(self.audio_features, [-1, 128])[permu]  # [len * 10, 128]
+        # permu = np.random.permutation(len(self.feature_video) * 10)
+        # self.feature_video = np.reshape(self.feature_video, [-1, 7, 7, 512])[permu]  # [len * 10, 7, 7, 512]
+        # self.feature_audio = np.reshape(self.feature_audio, [-1, 128])[permu]  # [len * 10, 128]
 
-        self.video_batch = np.zeros([self.batch_size, 10, 7, 7, 512], dtype=np.float32)
-        self.audio_batch = np.zeros([self.batch_size, 10, 128], dtype=np.float32)
+        self.batch_video = np.zeros([self.batch_size, 10, 7, 7, 512], dtype=np.float32)
+        self.batch_audio = np.zeros([self.batch_size, 10, 128], dtype=np.float32)
 
     def __len__(self):
         return len(self.lis)
@@ -32,6 +32,13 @@ class AVEDataset(object):
     def get_batch(self, idx):
         for i in range(self.batch_size):
             id = idx * self.batch_size + i
-            self.video_batch[i] = self.video_features[self.lis[id]]
-            self.audio_batch[i] = self.audio_features[self.lis[id]]
-        return torch.Tensor(self.video_batch).float(), torch.Tensor(self.audio_batch).float()
+            self.batch_video[i] = self.feature_video[self.lis[id]]
+            self.batch_audio[i] = self.feature_audio[self.lis[id]]
+        return torch.Tensor(self.batch_video).float(), torch.Tensor(self.batch_audio).float()
+
+    def neg_sampling(self):
+        batch_audio = []
+        for i in range(self.batch_size):
+            id = np.random.randint(len(self.lis))
+            batch_audio.append(self.feature_audio[self.lis[id]])
+        return batch_audio
