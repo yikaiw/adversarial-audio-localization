@@ -12,7 +12,7 @@ from torch.optim.lr_scheduler import StepLR
 from sklearn.metrics import accuracy_score, classification_report
 from dataloader import AVEDataset
 import random
-from models import att_Net
+from models import Att_Net
 random.seed(3344)
 import time
 import warnings
@@ -38,10 +38,10 @@ args.dir_video = args.data_root_path + '/' + args.dir_video
 args.dir_audio = args.data_root_path + '/' + args.dir_audio
 
 os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
-# device = torch.device('cuda:%i' % args.gpu) if torch.cuda.is_available() else torch.device('cpu')
+device = torch.device('cuda:%i' % args.gpu) if torch.cuda.is_available() else torch.device('cpu')
 
 model_name = args.name
-net_model = Att_Net(512, 49)
+net_model = Att_Net()
 
 hinge_loss = nn.MarginRankingLoss(margin=args.margin)
 optimizer = optim.Adam(net_model.parameters(), lr=1e-3)
@@ -54,21 +54,22 @@ def train(args):
     nb_batch = len(AVEData) // args.batch_size
     epoch_l = []
     best_val_acc = 0
+    print('Start training.')
     for epoch in range(args.nb_epoch):
         epoch_loss = 0
         n = 0
         start = time.time()
         for i in range(nb_batch):
             input_video, input_audio = AVEData.get_batch(i)
-
-            input_video = input_video.cuda()
-            input_audio_pos = input_audio.cuda()
-            input_audio_neg = AVEData.neg_sampling().cuda()
+            input_video = input_video.to(device)
+            input_audio_pos = input_audio.to(device)
+            input_audio_neg = AVEData.neg_sampling().to(device)
 
             net_model.zero_grad()
             pos_norm = net_model(input_video, input_audio_pos)
             neg_norm = net_model(input_video, input_audio_neg)
-            loss = hinge_loss(pos_norm, neg_norm, 1)
+            target = torch.ones_like(pos_norm)
+            loss = hinge_loss(pos_norm, neg_norm, target)
             epoch_loss += loss.cpu().data.numpy()
             loss.backward()
             scheduler.step()

@@ -41,4 +41,4 @@ class AVEDataset(object):
         for i in range(self.batch_size):
             id = np.random.randint(len(self.lis))
             batch_audio.append(self.feature_audio[self.lis[id]])
-        return batch_audio
+        return torch.Tensor(batch_audio).float()

@@ -17,13 +17,15 @@ parser = argparse.ArgumentParser(description='Visualization')
 # Data specifications
 parser.add_argument('--name', type=str, default='AV_att', help='model name')
 parser.add_argument('--local', action='store_true', default=False, help='run locally or remotely')
+parser.add_argument('--save_origin', action='store_true', default=False, help='save origin images')
 parser.add_argument('--gpu', type=int, default=0, help='gpu selection')
+parser.add_argument('--batch_size', type=int, default=5, help='select batch size')
 args = parser.parse_args()
 args.data_root_path = '/media/wyk/DATA/datasets/AVE' if args.local else '/home2/wyk/datasets/AVE'
 args.save_root_path = '/media/wyk/DATA/datasets/AVE' if args.local else '/home2/wyk/results/AVE'
 
-os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
-
+# os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
+device = torch.device('cuda:%i' % args.gpu) if torch.cuda.is_available() else torch.device('cpu')
 
 def video_frame_sample(frame_interval, video_length, sample_num):
     num = []
@@ -42,7 +44,7 @@ def normlize(x, min = 0, max = 255):
     return x
 
 
-def create_heatmap(im_map, im_cloud, kernel_size=(5,5),colormap=cv2.COLORMAP_JET,a1=0.5,a2=0.3):
+def create_heatmap(im_map, im_cloud, kernel_size=(5,5), colormap=cv2.COLORMAP_JET, a1=0.5, a2=0.3):
     print(np.max(im_cloud))
     im_cloud[:, :, 1] = 0
     im_cloud[:, :, 2] = 0
@@ -70,19 +72,18 @@ if torch.cuda.is_available():
     att_model = torch.load('model/AV_att.pt')
 else:
     att_model = torch.load('model/AV_att.pt', map_location='cpu')
-att_layer = att_model._modules.get('affine_h') # extract attention maps from the layer
+att_layer = att_model._modules.get('affine_att')  # extract attention maps from the layer
 
 # load testing set
 AVEData = AVEDataset(dir_video=dir_video, dir_audio=dir_audio,
-                     dir_order=dir_order_test, batch_size=402)
+                     dir_order=dir_order_test, batch_size=args.batch_size)
 nb_batch = len(AVEData)
-print(nb_batch)
+print('number of batch: %i' % nb_batch)
 audio_inputs, video_inputs = AVEData.get_batch(0)
-audio_inputs = Variable(audio_inputs.cuda(), requires_grad=False)
-video_inputs = Variable(video_inputs.cuda(), requires_grad=False)
+audio_inputs, video_inputs = audio_inputs.to(device), video_inputs.to(device)
 
 # generate attention maps
-att_map = torch.zeros((4020, 49, 1))
+att_map = torch.zeros(args.batch_size * 10, 49, 1)
 
 def fun(m, i, o):
     att_map.copy_(o.data)
@@ -92,7 +93,8 @@ h_x = att_model(audio_inputs, video_inputs)
 map.remove()
 z_t = Variable(att_map.squeeze(2))
 alpha_t = F.softmax(z_t, dim=-1).view(z_t.size(0), -1, z_t.size(1))
-att_weight = alpha_t.view(402, 10, 7, 7).cpu().data.numpy()  # attention maps of all testing samples
+att_weight = alpha_t.view(args.batch_size, 10, 7, 7).cpu().data.numpy()
+# attention maps of all testing samples
     
 c = 0
 t = 10
@@ -115,7 +117,6 @@ for num in range(len(test_order)):
     frame_num = video_frame_sample(frame_interval, t, sample_num)
     imgs = []
     for i, im in enumerate(vid):
-        
         x_im = cv2.resize(im, (224, 224))
         imgs.append(x_im)
     vid.close()
@@ -129,9 +130,10 @@ for num in range(len(test_order)):
     att = normlize(att, 0, 255)
     att_scaled = np.zeros((10, 224, 224))
     for k in range(att.shape[0]):
-        att_scaled[k, :, :] = cv2.resize(att[k, :, :], (224, 224)) # scaling attention maps 
+        att_scaled[k, :, :] = cv2.resize(att[k, :, :], (224, 224))  # scaling attention maps 
   
-    att_t = np.repeat(att_scaled, 16, axis = 0) # 1-sec segment only has 1 attention map. Here, repeat 16 times to generate 16 maps for a 1-sec video
+    att_t = np.repeat(att_scaled, 16, axis=0)
+    # 1-sec segment only has 1 attention map. Here, repeat 16 times to generate 16 maps for a 1-sec video
     heat_maps = np.repeat(att_t.reshape(160, 224, 224, 1), 3, axis = -1)
     c += 1
     
@@ -151,7 +153,8 @@ for num in range(len(test_order)):
         n = '%04d' % idx
         vid_index = os.path.join(att_dir, 'pic' + n + '.jpg')
         cv2.imwrite(vid_index, att_frame)
-        ori_frame = np.uint8(im)
-        ori_index = os.path.join(ori_dir, 'ori' + n + '.jpg')
-        cv2.imwrite(ori_index, ori_frame)
+        if args.save_origin:
+            ori_frame = np.uint8(im)
+            ori_index = os.path.join(ori_dir, 'ori' + n + '.jpg')
+            cv2.imwrite(ori_index, ori_frame)
 
