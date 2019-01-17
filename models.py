@@ -3,10 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class Att_Net(nn.Module):
+class Attention_Net(nn.Module):
     '''Audio-visual event localization with audio-guided visual attention and audio-visual fusion'''
     def __init__(self):
-        super(Att_Net, self).__init__()
+        super(Attention_Net, self).__init__()
         self.att_type = 'add'  # add, cos
         hidden_size_1 = 512
         hidden_size_2 = 49 if self.att_type == 'add' else 128
@@ -62,4 +62,39 @@ class Att_Net(nn.Module):
 
         embed_video = self.net_embed_video(embed_video)  # [batch_size * 10, 128]
         embed_audio = self.net_embed_audio(embed_audio)  # [batch_size * 10, 128]
-        return torch.norm(embed_video - embed_audio, dim=1)
+        # return torch.norm(embed_video - embed_audio, dim=1)
+        return torch.cat([embed_video, embed_audio], dim=1)    # [batch_size * 10, 256]
+
+
+class Discriminator(nn.Module):
+    def __init__(self, margin):
+        super(Discriminator, self).__init__()
+        self.hinge_loss = nn.MarginRankingLoss(margin=margin)
+        self.score_net = nn.Sequential(nn.Linear(256, 64), nn.ReLU(), nn.Linear(64, 1, bias=False))
+
+        self.init_weights()
+        if torch.cuda.is_available():
+            self.cuda()
+
+    def init_weights(self):
+        nn.init.xavier_uniform(self.score_net[0].weight)
+        nn.init.xavier_uniform(self.score_net[2].weight)
+
+    def forward(self, pos_embed, neg_embed):
+        target = torch.ones_like(pos_embed)
+        pos_score, neg_score = self.score_net(pos_embed), self.score_net(neg_embed)
+        hinge_loss = self.hinge_loss(pos_score, neg_score, target)
+        return hinge_loss
+
+
+class Generator(nn.Module):
+    def __init__(self):
+        super(Generator, self).__init__()
+
+        self.init_weights()
+        if torch.cuda.is_available():
+            self.cuda()
+
+    def init_weights(self):
+        pass
+        

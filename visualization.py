@@ -19,7 +19,7 @@ parser.add_argument('--name', type=str, default='AV_att', help='model name')
 parser.add_argument('--local', action='store_true', default=False, help='run locally or remotely')
 parser.add_argument('--save_origin', action='store_true', default=False, help='save origin images')
 parser.add_argument('--gpu', type=int, default=0, help='gpu selection')
-parser.add_argument('--batch_size', type=int, default=5, help='select batch size')
+parser.add_argument('--num', type=int, default=5, help='select the number of the results')
 args = parser.parse_args()
 args.data_root_path = '/media/wyk/DATA/datasets/AVE' if args.local else '/home2/wyk/datasets/AVE'
 args.save_root_path = '/media/wyk/DATA/datasets/AVE' if args.local else '/home2/wyk/results/AVE'
@@ -76,14 +76,14 @@ att_layer = att_model._modules.get('affine_att')  # extract attention maps from 
 
 # load testing set
 AVEData = AVEDataset(dir_video=dir_video, dir_audio=dir_audio,
-                     dir_order=dir_order_test, batch_size=args.batch_size)
+                     dir_order=dir_order_test, batch_size=args.num)
 nb_batch = len(AVEData)
 print('number of batch: %i' % nb_batch)
-audio_inputs, video_inputs = AVEData.get_batch(0)
+audio_inputs, video_inputs = AVEData.get_batch(1)
 audio_inputs, video_inputs = audio_inputs.to(device), video_inputs.to(device)
 
 # generate attention maps
-att_map = torch.zeros(args.batch_size * 10, 49, 1)
+att_map = torch.zeros(args.num * 10, 49, 1)
 
 def fun(m, i, o):
     att_map.copy_(o.data)
@@ -93,7 +93,7 @@ h_x = att_model(audio_inputs, video_inputs)
 map.remove()
 z_t = Variable(att_map.squeeze(2))
 alpha_t = F.softmax(z_t, dim=-1).view(z_t.size(0), -1, z_t.size(1))
-att_weight = alpha_t.view(args.batch_size, 10, 7, 7).cpu().data.numpy()
+att_weight = alpha_t.view(args.num, 10, 7, 7).cpu().data.numpy()
 # attention maps of all testing samples
     
 c = 0
