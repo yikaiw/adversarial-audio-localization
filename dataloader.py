@@ -12,12 +12,13 @@ class AVEDataset(object):
 
         with h5py.File(dir_order, 'r') as hf:
             order = hf['order'][:]
-        self.lis = order
+        self.lis = order  # numpy.ndarray: [3339, ]
+
 
         with h5py.File(dir_video, 'r') as hf:
-            self.feature_video = hf['avadataset'][:]  # [4143, 10, 7, 7, 512]
+            self.feature_video = hf['avadataset'][:]  # numpy.ndarray: [4143, 10, 7, 7, 512]
         with h5py.File(dir_audio, 'r') as hf:
-            self.feature_audio = hf['avadataset'][:]  # [4143, 10, 128]
+            self.feature_audio = hf['avadataset'][:]  # numpy.ndarray: [4143, 10, 128]
 
         # permu = np.random.permutation(len(self.feature_video) * 10)
         # self.feature_video = np.reshape(self.feature_video, [-1, 7, 7, 512])[permu]  # [len * 10, 7, 7, 512]
@@ -39,6 +40,6 @@ class AVEDataset(object):
     def neg_sampling(self, cs=1):
         batch_audio = []
         for i in range(self.batch_size):
-            id = np.random.randint(len(self.lis))
-            batch_audio.append(self.feature_audio[self.lis[id]])
+            id = np.random.randint(len(self.lis), size=cs).squeeze()
+            batch_audio.append(self.feature_audio.take(self.lis.take(id)))
         return torch.Tensor(batch_audio).float()

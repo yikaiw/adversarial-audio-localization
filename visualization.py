@@ -12,8 +12,8 @@ import cv2
 import warnings
 warnings.filterwarnings('ignore')
 import argparse
-from datetime import datetime
-time = datetime.now().strftime('-%m%d%H%M-')
+import config as cf
+
 
 parser = argparse.ArgumentParser(description='Visualization')
 # Data specifications
@@ -21,10 +21,10 @@ parser.add_argument('--note', type=str, default=None, help='model note')
 parser.add_argument('--local', action='store_true', default=False, help='run locally or remotely')
 parser.add_argument('--save_origin', action='store_true', default=False, help='save origin images')
 parser.add_argument('--gpu', type=int, default=0, help='gpu selection')
-parser.add_argument('--batch_size', type=int, default=5, help='select the number of the results')
+parser.add_argument('--batch_size', type=int, default=100, help='select the number of the results')
 args = parser.parse_args()
-args.data_root_path = '/media/wyk/DATA/Datasets/AVE' if args.local else '/home2/wyk/datasets/AVE'
-args.save_root_path = '/media/wyk/DATA/Results/AVE' if args.local else '/home2/wyk/results/AVE'
+args.data_root_path = cf.data_root_path_local if args.local else cf.data_root_path_remote
+args.save_root_path = cf.save_root_path_local if args.local else cf.save_root_path_remote
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 device = torch.device('cuda:%i' % args.gpu) if torch.cuda.is_available() else torch.device('cpu')
@@ -102,7 +102,7 @@ c = 0
 t = 10
 sample_num = 16  # 16 frames for 1-sec video segment
 extract_frames = np.zeros((160, 224, 224, 3))  # 160 224x224x3 frames for a 10-sec video
-subfolder = 'visual_att' + time if args.note is None else 'visual_att' + args.note
+subfolder = 'visual_att' + cf.time if args.note is None else 'visual_att' + args.note
 save_dir = '%s/%s/' % (args.save_root_path, subfolder)  # store attention maps
 original_dir = '%s/%s/original' % (args.save_root_path, subfolder)  # store video frames
 

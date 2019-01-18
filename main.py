@@ -16,8 +16,9 @@ from models import Attention_Net, Discriminator, Generator
 random.seed(3344)
 import time
 import warnings
-warnings.filterwarnings('ignore') 
+warnings.filterwarnings('ignore')
 import argparse
+import config as cf
 
 parser = argparse.ArgumentParser(description='AVE')
 # data specifications
@@ -34,7 +35,7 @@ parser.add_argument('--dir_order_test', type=str, default='data/test_order.h5', 
 parser.add_argument('--margin', type=float, default=1.0, help='margin of the hinge loss')
 parser.add_argument('--cs', type=int, default=1, help='candidate size for adversarial sampling')
 args = parser.parse_args()
-args.data_root_path = '/media/wyk/DATA/Datasets/AVE' if args.local else '/home2/wyk/datasets/AVE'
+args.data_root_path = cf.data_root_path_local if args.local else cf.data_root_path_remote
 args.dir_video = args.data_root_path + '/' + args.dir_video
 args.dir_audio = args.data_root_path + '/' + args.dir_audio
 
@@ -68,10 +69,10 @@ def train(args):
             input_audio_neg = AVEData.neg_sampling(args.cs).to(device)
 
             att.zero_grad()
-            pos_embed = att(input_video, input_audio_pos)
-            neg_embed = att(input_video, input_audio_neg)
+            score_pos = att(input_video, input_audio_pos)
+            score_neg = att(input_video, input_audio_neg)
 
-            loss = dis(pos_embed, neg_embed)
+            loss = dis(score_pos, score_neg)
             epoch_loss += loss.cpu().data.numpy()
             loss.backward()
             scheduler.step()
