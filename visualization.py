@@ -12,17 +12,19 @@ import cv2
 import warnings
 warnings.filterwarnings('ignore')
 import argparse
+from datetime import datetime
+time = datetime.now().strftime('-%m%d%H%M-')
 
 parser = argparse.ArgumentParser(description='Visualization')
 # Data specifications
-parser.add_argument('--name', type=str, default='AV_att', help='model name')
+parser.add_argument('--note', type=str, default=None, help='model note')
 parser.add_argument('--local', action='store_true', default=False, help='run locally or remotely')
 parser.add_argument('--save_origin', action='store_true', default=False, help='save origin images')
 parser.add_argument('--gpu', type=int, default=0, help='gpu selection')
-parser.add_argument('--num', type=int, default=5, help='select the number of the results')
+parser.add_argument('--batch_size', type=int, default=5, help='select the number of the results')
 args = parser.parse_args()
-args.data_root_path = '/media/wyk/DATA/datasets/AVE' if args.local else '/home2/wyk/datasets/AVE'
-args.save_root_path = '/media/wyk/DATA/datasets/AVE' if args.local else '/home2/wyk/results/AVE'
+args.data_root_path = '/media/wyk/DATA/Datasets/AVE' if args.local else '/home2/wyk/datasets/AVE'
+args.save_root_path = '/media/wyk/DATA/Results/AVE' if args.local else '/home2/wyk/results/AVE'
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
 device = torch.device('cuda:%i' % args.gpu) if torch.cuda.is_available() else torch.device('cpu')
@@ -76,14 +78,14 @@ att_layer = att_model._modules.get('affine_att')  # extract attention maps from 
 
 # load testing set
 AVEData = AVEDataset(dir_video=dir_video, dir_audio=dir_audio,
-                     dir_order=dir_order_test, batch_size=args.num)
+                     dir_order=dir_order_test, batch_size=args.batch_size)
 nb_batch = len(AVEData)
 print('number of batch: %i' % nb_batch)
 audio_inputs, video_inputs = AVEData.get_batch(1)
 audio_inputs, video_inputs = audio_inputs.to(device), video_inputs.to(device)
 
 # generate attention maps
-att_map = torch.zeros(args.num * 10, 49, 1)
+att_map = torch.zeros(args.batch_size * 10, 49, 1)
 
 def fun(m, i, o):
     att_map.copy_(o.data)
@@ -93,17 +95,18 @@ h_x = att_model(audio_inputs, video_inputs)
 map.remove()
 z_t = Variable(att_map.squeeze(2))
 alpha_t = F.softmax(z_t, dim=-1).view(z_t.size(0), -1, z_t.size(1))
-att_weight = alpha_t.view(args.num, 10, 7, 7).cpu().data.numpy()
+att_weight = alpha_t.view(args.batch_size, 10, 7, 7).cpu().data.numpy()
 # attention maps of all testing samples
     
 c = 0
 t = 10
 sample_num = 16  # 16 frames for 1-sec video segment
 extract_frames = np.zeros((160, 224, 224, 3))  # 160 224x224x3 frames for a 10-sec video
-save_dir = '%s/visual_att/attention_maps' % args.save_root_path  # store attention maps
-original_dir = '%s/visual_att/original' % args.save_root_path  # store video frames
+subfolder = 'visual_att' + time if args.note is None else 'visual_att' + args.note
+save_dir = '%s/%s/' % (args.save_root_path, subfolder)  # store attention maps
+original_dir = '%s/%s/original' % (args.save_root_path, subfolder)  # store video frames
 
-for num in range(len(test_order)):
+for num in range(args.batch_size):
     print(num)
     data = dataset[test_order[num]]
     x = data.split('&')
@@ -137,12 +140,12 @@ for num in range(len(test_order)):
     heat_maps = np.repeat(att_t.reshape(160, 224, 224, 1), 3, axis = -1)
     c += 1
     
-    att_dir = save_dir + x[1]
-    ori_dir =  original_dir + x[1]
+    att_dir = save_dir + str(num)
+    ori_dir =  original_dir + str(num)
     if not os.path.exists(att_dir):
-      os.makedirs(att_dir)
-    if not os.path.exists(ori_dir):
-      os.makedirs(ori_dir)
+        os.makedirs(att_dir)
+    if args.save_origin and not os.path.exists(ori_dir):
+        os.makedirs(ori_dir)
     for idx in range(160):
         heat_map = heat_maps[idx, :, :, 0]
         im = extract_frames[idx, :, :, :]
@@ -158,3 +161,5 @@ for num in range(len(test_order)):
             ori_index = os.path.join(ori_dir, 'ori' + n + '.jpg')
             cv2.imwrite(ori_index, ori_frame)
 
+ip = '166.111.138.137' if args.local else '166.111.138.222'
+print('scp -r wyk@%s:%s' % (ip, save_dir))

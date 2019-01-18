@@ -69,7 +69,7 @@ class Attention_Net(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, margin):
         super(Discriminator, self).__init__()
-        self.hinge_loss = nn.MarginRankingLoss(margin=margin)
+        self.hinge_loss = nn.MarginRankingLoss(margin)
         self.score_net = nn.Sequential(nn.Linear(256, 64), nn.ReLU(), nn.Linear(64, 1, bias=False))
 
         self.init_weights()

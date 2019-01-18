@@ -27,13 +27,14 @@ parser.add_argument('--gpu', type=int, default=0, help='gpu selection')
 parser.add_argument('--dir_video', type=str, default='visual_feature.h5', help='visual features')
 parser.add_argument('--dir_audio', type=str, default='audio_feature.h5', help='audio features')
 parser.add_argument('--epoch', type=int, default=300, help='number of epoch')
-parser.add_argument('--margin', type=float, default=1.0, help='margin of the hinge loss')
 parser.add_argument('--batch_size', type=int, default=64, help='number of batch size')
 parser.add_argument('--dir_order_train', type=str, default='data/train_order.h5', help='indices of training samples')
 parser.add_argument('--dir_order_val', type=str, default='data/val_order.h5', help='indices of validation samples')
 parser.add_argument('--dir_order_test', type=str, default='data/test_order.h5', help='indices of testing samples')
+parser.add_argument('--margin', type=float, default=1.0, help='margin of the hinge loss')
+parser.add_argument('--cs', type=int, default=1, help='candidate size for adversarial sampling')
 args = parser.parse_args()
-args.data_root_path = '/media/wyk/DATA/datasets/AVE' if args.local else '/home2/wyk/datasets/AVE'
+args.data_root_path = '/media/wyk/DATA/Datasets/AVE' if args.local else '/home2/wyk/datasets/AVE'
 args.dir_video = args.data_root_path + '/' + args.dir_video
 args.dir_audio = args.data_root_path + '/' + args.dir_audio
 
@@ -64,7 +65,7 @@ def train(args):
             input_video, input_audio = AVEData.get_batch(i)
             input_video = input_video.to(device)
             input_audio_pos = input_audio.to(device)
-            input_audio_neg = AVEData.neg_sampling().to(device)
+            input_audio_neg = AVEData.neg_sampling(args.cs).to(device)
 
             att.zero_grad()
             pos_embed = att(input_video, input_audio_pos)

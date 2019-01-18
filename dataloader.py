@@ -36,7 +36,7 @@ class AVEDataset(object):
             self.batch_audio[i] = self.feature_audio[self.lis[id]]
         return torch.Tensor(self.batch_video).float(), torch.Tensor(self.batch_audio).float()
 
-    def neg_sampling(self):
+    def neg_sampling(self, cs=1):
         batch_audio = []
         for i in range(self.batch_size):
             id = np.random.randint(len(self.lis))
