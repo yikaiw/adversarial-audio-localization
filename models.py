@@ -70,22 +70,29 @@ class Attention_Net(nn.Module):
         embed_audio = self.net_embed_audio(embed_audio)  # [batch_size * 10, 128]
         if cf.score_method == 'norm':
             score_sample = torch.norm(embed_video - embed_audio, dim=1)  # [batch_size * 10, 1]
-            return score_sample
+            return score_sample  # less -> positive
         elif cf.score_method == 'concat':
             embed_sample = torch.cat([embed_video, embed_audio], dim=1)  # [batch_size * 10, 256]
             score_sample = self.score_net(embed_sample)  # [batch_size * 10, 1]
-            return score_sample
+            return score_sample  # less -> negative
 
 
 class Discriminator(nn.Module):
     def __init__(self, margin):
         super(Discriminator, self).__init__()
-        self.hinge_loss = nn.MarginRankingLoss(margin)
+        if cf.loss_dis == 'hinge':
+            self.hinge_loss = nn.MarginRankingLoss(margin)
 
     def forward(self, score_pos, score_neg):
-        target = torch.ones_like(score_pos)
-        hinge_loss = self.hinge_loss(score_pos, score_neg, target)
-        return hinge_loss
+        if cf.loss_dis == 'hinge':
+            target = torch.ones_like(score_pos)
+            loss = self.hinge_loss(score_pos, score_neg, target)
+        elif cf.loss_dis == 'ratio':
+            score_exp = [torch.exp(score_pos), torch.exp(score_neg)]
+            d_pos = score_exp[0] / torch.sum(score_exp)
+            d_neg = score_exp[1] / torch.sum(score_exp)
+            loss = torch.norm(d_pos) + torch.norm(1 - d_neg)
+        return loss
 
 
 class Generator(nn.Module):

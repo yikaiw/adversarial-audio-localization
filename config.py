@@ -5,3 +5,4 @@ data_root_path_local, save_root_path_local = '/media/wyk/DATA/Datasets/AVE', '/m
 data_root_path_remote, save_root_path_remote = '/home2/wyk/datasets/AVE', '/home2/wyk/results/AVE'
 
 score_method = 'norm'  # norm, concat, cos
+loss_dis = 'hinge'  # hinge, ratio
