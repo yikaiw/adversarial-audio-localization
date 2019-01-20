@@ -4,28 +4,28 @@ import torch.nn.functional as F
 import config as cf
 
 
-class Attention_Net(nn.Module):
-    '''Audio-visual event localization with audio-guided visual attention and audio-visual fusion'''
-    def __init__(self):
-        super(Attention_Net, self).__init__()
-        self.att_type = 'add'  # add, cos
+class Attention(nn.Module):
+    def __init__(self, att_method, score_method):
+        super(Attention, self).__init__()
+        self.att_method = att_method
+        self.score_method = score_method
         hidden_size_1 = 512
-        hidden_size_2 = 49 if self.att_type == 'add' else 128
+        hidden_size_2 = 49 if att_method == 'add' else 128
 
-        self.net_att_video = nn.Sequential(
+        self.video_att_net = nn.Sequential(
             nn.Linear(512, hidden_size_1),
             nn.ReLU(),
             nn.Linear(hidden_size_1, hidden_size_2, bias=False)
         )
-        self.net_att_audio = nn.Sequential(
+        self.audio_att_net = nn.Sequential(
             nn.Linear(128, hidden_size_1),
             nn.ReLU(),
             nn.Linear(hidden_size_1, hidden_size_2, bias=False)
         )
-        self.affine_att = nn.Linear(hidden_size_2, 1, bias=False)
-        self.net_embed_video = nn.Sequential(nn.Linear(512, 256), nn.ReLU(), nn.Linear(256, 128))
-        self.net_embed_audio = nn.Sequential(nn.Linear(128, 128), nn.ReLU(), nn.Linear(128, 128))
-        if cf.score_method == 'concat':
+        self.att_affine = nn.Linear(hidden_size_2, 1, bias=False)
+        self.video_embed_net = nn.Sequential(nn.Linear(512, 256), nn.ReLU(), nn.Linear(256, 128))
+        self.audio_embed_net = nn.Sequential(nn.Linear(128, 128), nn.ReLU(), nn.Linear(128, 128))
+        if score_method == 'concat':
             self.score_net = nn.Sequential(nn.Linear(256, 64), nn.ReLU(), nn.Linear(64, 1, bias=False))
 
         self.init_weights()
@@ -33,76 +33,96 @@ class Attention_Net(nn.Module):
             self.cuda()
 
     def init_weights(self):
-        nn.init.xavier_uniform(self.net_att_video[0].weight)
-        nn.init.xavier_uniform(self.net_att_video[2].weight)
-        nn.init.xavier_uniform(self.net_att_audio[0].weight)
-        nn.init.xavier_uniform(self.net_att_audio[2].weight)
-        nn.init.xavier_uniform(self.affine_att.weight)
-        nn.init.xavier_uniform(self.net_embed_video[0].weight)
-        nn.init.xavier_uniform(self.net_embed_video[2].weight)
-        nn.init.xavier_uniform(self.net_embed_audio[0].weight)
-        nn.init.xavier_uniform(self.net_embed_audio[2].weight)
-        if cf.score_method == 'concat':
+        nn.init.xavier_uniform(self.video_att_net[0].weight)
+        nn.init.xavier_uniform(self.video_att_net[2].weight)
+        nn.init.xavier_uniform(self.audio_att_net[0].weight)
+        nn.init.xavier_uniform(self.audio_att_net[2].weight)
+        nn.init.xavier_uniform(self.att_affine.weight)
+        nn.init.xavier_uniform(self.video_embed_net[0].weight)
+        nn.init.xavier_uniform(self.video_embed_net[2].weight)
+        nn.init.xavier_uniform(self.audio_embed_net[0].weight)
+        nn.init.xavier_uniform(self.audio_embed_net[2].weight)
+        if self.score_method == 'concat':
             nn.init.xavier_uniform(self.score_net[0].weight)
             nn.init.xavier_uniform(self.score_net[2].weight)
 
-    def forward(self, input_video, input_audio):
-        # input_video: [batch_size, 10, 7, 7, 512], input_audio: [batch_size, 10, 128]
-        embed_video = input_video.view(-1, 49, 512)  # [batch_size * 10, 49, 512]
-        embed_audio = input_audio.view(-1, 128)
+    def forward(self, video_input, audio_input):
+        # video_input: [batch_size, 7, 7, 512], audio_input: [batch_size, 128]
+        video_embed = video_input.view(-1, 49, 512)  # [batch_size, 49, 512]
+        audio_embed = audio_input.view(-1, 128)
 
         # audio-guided visual attention
-        embed_att_video = self.net_att_video(embed_video)  # [batch_size * 10, 49, hidden_size_2]
-        embed_att_audio = self.net_att_audio(embed_audio)  # [batch_size * 10, hidden_size_2]
+        video_att_embed = self.video_att_net(video_embed)  # [batch_size, 49, hidden_size_2]
+        audio_att_embed = self.audio_att_net(audio_embed)  # [batch_size, hidden_size_2]
 
-        if self.att_type == 'add':
-            content = embed_att_video + embed_att_audio.unsqueeze(2)
-            # [batch_size * 10, 49, 49] = [batch_size * 10, 49, 49] + [batch_size * 10, 49, 1]
-        elif self.att_type == 'cos':
-            embed_att_audio = torch.cat([embed_att_audio.unsqueeze(1)] * 49, dim=1)
-            content = torch.mul(embed_att_video, embed_att_audio)  # [batch_size * 10, 49, hidden_size_2]
+        if self.att_method == 'add':
+            content = video_att_embed + audio_att_embed.unsqueeze(2)
+            # [batch_size, 49, 49] = [batch_size, 49, 49] + [batch_size, 49, 1]
+        elif self.att_method == 'cos':
+            audio_att_embed = torch.cat([audio_att_embed.unsqueeze(1)] * 49, dim=1)
+            content = torch.mul(video_att_embed, audio_att_embed)  # [batch_size, 49, hidden_size_2]
 
-        e = self.affine_att((F.tanh(content))).squeeze(2)  # [batch_size * 10, 49]
-        alpha = F.softmax(e, dim=-1).unsqueeze(1)  # [batch_size * 10, 1, 49]
-        embed_video = torch.bmm(alpha, embed_video).view(-1, 512)  # [batch_size * 10, 512]
+        e = self.att_affine((F.tanh(content))).squeeze(2)  # [batch_size, 49]
+        alpha = F.softmax(e, dim=-1).unsqueeze(1)  # [batch_size, 1, 49]
+        video_embed = torch.bmm(alpha, video_embed).view(-1, 512)  # [batch_size, 512]
 
-        embed_video = self.net_embed_video(embed_video)  # [batch_size * 10, 128]
-        embed_audio = self.net_embed_audio(embed_audio)  # [batch_size * 10, 128]
-        if cf.score_method == 'norm':
-            score_sample = torch.norm(embed_video - embed_audio, dim=1)  # [batch_size * 10, 1]
-            return score_sample  # less -> positive
-        elif cf.score_method == 'concat':
-            embed_sample = torch.cat([embed_video, embed_audio], dim=1)  # [batch_size * 10, 256]
-            score_sample = self.score_net(embed_sample)  # [batch_size * 10, 1]
-            return score_sample  # less -> negative
+        video_embed = self.video_embed_net(video_embed)  # [batch_size, 128]
+        audio_embed = self.audio_embed_net(audio_embed)  # [batch_size, 128]
+        if self.score_method == 'norm':
+            sample_score = torch.norm(video_embed - audio_embed, dim=1)  # [batch_size]
+            return sample_score  # less -> positive
+        elif self.score_method == 'concat':
+            sample_embed = torch.cat([video_embed, audio_embed], dim=1)  # [batch_size, 256]
+            sample_score = self.score_net(sample_embed).squeeze()  # [batch_size]
+            return sample_score  # less -> negative
 
 
 class Discriminator(nn.Module):
     def __init__(self, margin):
         super(Discriminator, self).__init__()
-        if cf.loss_dis == 'hinge':
+        self.att = Attention(cf.att_method, cf.score_method)
+        if cf.dis_loss == 'hinge':
             self.hinge_loss = nn.MarginRankingLoss(margin)
 
-    def forward(self, score_pos, score_neg):
-        if cf.loss_dis == 'hinge':
-            target = torch.ones_like(score_pos)
-            loss = self.hinge_loss(score_pos, score_neg, target)
-        elif cf.loss_dis == 'ratio':
-            score_exp = [torch.exp(score_pos), torch.exp(score_neg)]
-            d_pos = score_exp[0] / torch.sum(score_exp)
-            d_neg = score_exp[1] / torch.sum(score_exp)
-            loss = torch.norm(d_pos) + torch.norm(1 - d_neg)
+    def cal_reward(self, video_input, audio_neg_input):
+        score = self.att(video_input, audio_neg_input)
+        return score
+
+    def forward(self, video_input, audio_pos_input, audio_neg_input):
+        # [batch_size, 7, 7, 512], [batch_size, 128], [batch_size, 128]
+        pos_score = self.att(video_input, audio_pos_input)
+        neg_score = self.att(video_input, audio_neg_input)
+        if cf.dis_loss == 'hinge':
+            target = torch.ones_like(pos_score)
+            loss = self.hinge_loss(pos_score, neg_score, target)
+        elif cf.dis_loss == 'ratio':
+            tmp = [torch.exp(pos_score), torch.exp(neg_score)]
+            pos_d, neg_d = tmp / torch.sum(tmp)
+            loss = torch.mean(torch.norm(pos_d) + torch.norm(1 - neg_d))
         return loss
 
 
 class Generator(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
+        self.att = Attention(cf.att_method, cf.score_method)
 
-        self.init_weights()
-        if torch.cuda.is_available():
-            self.cuda()
+    def forward(self, video_input, audio_neg_cands, dis):
+        # [batch_size, 7, 7, 512], [batch_size, cand_size, 128]
+        cand_size = audio_neg_cands.size()[1]
+        video_input = torch.cat([video_input] * cand_size, dim=0)  # [batch_size * cand_size, 7, 7, 512]
+        audio_neg_cands = audio_neg_cands.view(-1, 128)  # [batch_size * cand_size, 128]
+        cand_scores = self.att(video_input, audio_neg_cands).view(-1, cand_size)  # [batch_size, cand_size]
+        cand_probs = torch.softmax(cand_scores, dim=1)  # [batch_size, cand_size]
 
-    def init_weights(self):
-        pass
-        
+        audio_neg_idx = utils.sample_from_probs(cand_probs.data.cpu().numpy())  # [batch_size]
+        audio_neg_idx = torch.LongTensor(audio_neg_idx).unsqueeze(1)  # [batch_size, 1]
+        audio_neg_prob = torch.gather(cand_probs, dim=1, index=audio_neg_idx).squeeze()  # [batch_size]
+
+        audio_neg_cands = audio_neg_cands.view(-1, cand_size, 128)  # [batch_size, cand_size, 128]
+        audio_neg_idx = torch.cat([audio_neg_idx.unsqueeze(2)] * 128, dim=2)  # [batch_size, 1, 128]
+        audio_neg_input = torch.gather(audio_neg_cands, dim=1, index=audio_neg_idx).squeeze()  # [batch_size, 128]
+
+        reward = dis.cal_reward(video_input, audio_neg_input)  # [batch_size]
+        loss = -torch.mean(torch.mul(reward, torch.log(audio_neg_prob + 1e-5)))
+        return loss

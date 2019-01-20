@@ -54,9 +54,9 @@ def create_heatmap(im_map, im_cloud, kernel_size=(5,5), colormap=cv2.COLORMAP_JE
 
 
 # features, and testing set list
-dir_video = '%s/visual_feature.h5' % args.data_root_path
-dir_audio = '%s/audio_feature.h5' % args.data_root_path
-dir_order_test = 'data/test_order.h5'
+video_dir = '%s/visual_feature.h5' % args.data_root_path
+audio_dir = '%s/audio_feature.h5' % args.data_root_path
+order_dir_test = 'data/test_order.h5'
 
 # access to original videos for extracting video frames
 raw_video_dir = '%s/AVE_Dataset/AVE' % args.data_root_path  # videos in AVE dataset
@@ -66,7 +66,7 @@ dataset = f.readlines()
 print('The dataset contains %d samples' % (len(dataset)))
 f.close()
 len_data = len(dataset)
-with h5py.File(dir_order_test, 'r') as hf:
+with h5py.File(order_dir_test, 'r') as hf:
     test_order = hf['order'][:]
 
 # pre-trained models
@@ -77,8 +77,8 @@ else:
 att_layer = att_model._modules.get('affine_att')  # extract attention maps from the layer
 
 # load testing set
-AVEData = AVEDataset(dir_video=dir_video, dir_audio=dir_audio,
-                     dir_order=dir_order_test, batch_size=args.batch_size)
+AVEData = AVEDataset(video_dir=video_dir, audio_dir=audio_dir,
+                     order_dir=order_dir_test, batch_size=args.batch_size)
 nb_batch = len(AVEData)
 print('number of batch: %i' % nb_batch)
 audio_inputs, video_inputs = AVEData.get_batch(1)
