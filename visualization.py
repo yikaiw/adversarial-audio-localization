@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
-from dataloader import AVEDataset
+from dataloader import AVEDatasetSeq
 import imageio
 import cv2
 import warnings
@@ -27,7 +27,7 @@ args.data_root_path = cf.data_root_path_local if args.local else cf.data_root_pa
 args.save_root_path = cf.save_root_path_local if args.local else cf.save_root_path_remote
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
-device = torch.device('cuda:%i' % args.gpu) if torch.cuda.is_available() else torch.device('cpu')
+cf.device = torch.device('cuda:%i' % args.gpu) if torch.cuda.is_available() else torch.device('cpu')
 
 def video_frame_sample(frame_interval, video_length, sample_num):
     num = []
@@ -44,13 +44,6 @@ def normlize(x, min = 0, max = 255):
         xi = max * (xi - np.min(xi)) / (np.max(xi) - np.min(xi))
         x[i, :, :] = xi
     return x
-
-
-def create_heatmap(im_map, im_cloud, kernel_size=(5,5), colormap=cv2.COLORMAP_JET, a1=0.5, a2=0.3):
-    print(np.max(im_cloud))
-    im_cloud[:, :, 1] = 0
-    im_cloud[:, :, 2] = 0
-    return (a1 * im_map + a2 * im_cloud).astype(np.uint8)
 
 
 # features, and testing set list
@@ -74,15 +67,14 @@ if torch.cuda.is_available():
     att_model = torch.load('model/AV_att.pt')
 else:
     att_model = torch.load('model/AV_att.pt', map_location='cpu')
-att_layer = att_model._modules.get('affine_att')  # extract attention maps from the layer
+att_layer = att_model._modules.get('att_affine')  # extract attention maps from the layer
 
 # load testing set
-AVEData = AVEDataset(video_dir=video_dir, audio_dir=audio_dir,
-                     order_dir=order_dir_test, batch_size=args.batch_size)
+AVEData = AVEDatasetSeq(video_dir=video_dir, audio_dir=audio_dir,
+                        order_dir=order_dir_test, batch_size=args.batch_size)
 nb_batch = len(AVEData)
 print('number of batch: %i' % nb_batch)
-audio_inputs, video_inputs = AVEData.get_batch(1)
-audio_inputs, video_inputs = audio_inputs.to(device), video_inputs.to(device)
+video_input, audio_input = AVEData.get_batch(1)
 
 # generate attention maps
 att_map = torch.zeros(args.batch_size * 10, 49, 1)
@@ -91,7 +83,7 @@ def fun(m, i, o):
     att_map.copy_(o.data)
 
 map = att_layer.register_forward_hook(fun)
-h_x = att_model(audio_inputs, video_inputs)
+h_x = att_model(video_input, audio_input)
 map.remove()
 z_t = Variable(att_map.squeeze(2))
 alpha_t = F.softmax(z_t, dim=-1).view(z_t.size(0), -1, z_t.size(1))
@@ -102,7 +94,7 @@ c = 0
 t = 10
 sample_num = 16  # 16 frames for 1-sec video segment
 extract_frames = np.zeros((160, 224, 224, 3))  # 160 224x224x3 frames for a 10-sec video
-subfolder = 'visual_att' + cf.time if args.note is None else 'visual_att' + args.note
+subfolder = 'att-%s' % cf.time if args.note is None else 'att-%s-%s' % (cf.time, args.note)
 save_dir = '%s/%s/' % (args.save_root_path, subfolder)  # store attention maps
 original_dir = '%s/%s/original' % (args.save_root_path, subfolder)  # store video frames
 

@@ -18,7 +18,6 @@ import warnings
 warnings.filterwarnings('ignore')
 import argparse
 import config as cf
-import utils
 
 parser = argparse.ArgumentParser(description='AVE')
 # data specifications
@@ -94,7 +93,7 @@ def train(args):
         elif cf.sampling_method == 'adversarial':
             print('Epoch {%s}  Loss: {%.4f, %.4f}  Time: {%2f}'
                 % (str(epoch), (dis_epoch_loss, gen_epoch_loss) / step_num, end - start))
-    torch.save(att, 'model/' + model_name + '.pt')
+    torch.save(dis.att, 'model/' + model_name + '.pt')
 
 
 train(args)
